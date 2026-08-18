@@ -399,12 +399,14 @@ $w = 372; $h = 40
 $win.Left = [Math]::Max($area.Left, [Math]::Min($pos.X - $w/2, $area.Right - $w))
 $win.Top  = [Math]::Max($area.Top,  [Math]::Min($pos.Y - 20,  $area.Bottom - $h))
 Render
-$win.Show()
-# ponytail: nunca deixar excecao de handler matar a app silenciosamente
+# ponytail: excecao de handler nao propaga ao callbak nativo (matava a janela silenciosamente)
+$ErrorActionPreference = 'Continue'
 $crashLog = 'C:/Users/bruno/AppData/Local/Temp/mimir_crash.txt'
-Register-ObjectEvent -InputObject $win.Dispatcher -EventName UnhandledException -Action {
-    Add-Content $crashLog ("CRASH: " + $event.SourceEventArgs.Exception.ToString())
-    Add-Content $crashLog ("STACK: " + $event.SourceEventArgs.Exception.StackTrace)
-    $event.SourceEventArgs.Handled = $true
-} | Out-Null
+$win.Dispatcher.add_UnhandledException({
+    param($sender, $e)
+    Add-Content $crashLog ("CRASH: " + $e.Exception.ToString())
+    Add-Content $crashLog ("STACK: " + $e.Exception.StackTrace)
+    $e.Handled = $true
+})
+$win.Show()
 [System.Windows.Threading.Dispatcher]::Run()
