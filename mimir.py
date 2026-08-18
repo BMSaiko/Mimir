@@ -128,7 +128,7 @@ HTML = r"""<!DOCTYPE html>
   <main id="list"></main>
 </div>
 <script>
-const api = window.pywebview.api;
+let api = null;
 let notas = [];
 
 function esc(s){return s.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
@@ -174,11 +174,19 @@ async function addsub(id){ const n=find(id); (n.subs=n.subs||[]).push({texto:'',
 async function del(id){ notas=notas.filter(x=>x.id!==id); render(); persist(); }
 async function prio(id,p){ const n=find(id); n.prio=p; n.atualizada=await api.now(); render(); persist(); }
 
-document.getElementById('addbtn').addEventListener('click', addNote);
-document.getElementById('quit').addEventListener('click', () => api.quit());  // pywebview closes window
 // drag handled natively via easy_drag
 
-load();
+function init() {
+  api = window.pywebview.api;
+  document.getElementById('addbtn').addEventListener('click', addNote);
+  document.getElementById('quit').addEventListener('click', () => api.quit());
+  load();
+}
+if (window.pywebview) {
+  window.addEventListener('pywebviewready', init);
+} else {
+  init(); // plain browser fallback
+}
 </script>
 </body>
 </html>
