@@ -23,7 +23,7 @@ function Add-Note {
     Save-Notas; Render
     $newb = $null
     foreach ($ch in $List.Children) { if ($ch.Tag -eq $n.id) { $newb = $ch; break } }
-    if ($newb) { $tb = $newb.Children[0].Children[2]; if ($tb -is [System.Windows.Controls.TextBox]) { $tb.Focus() } }
+    if ($newb) { $tb = $newb.Child.Children[2]; if ($tb -is [System.Windows.Controls.TextBox]) { $tb.Focus() } }
 }
 
 [xml]$xaml = @'
