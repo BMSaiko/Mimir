@@ -274,4 +274,6 @@ $win.Add_SourceInitialized({
     [MimirHotkey]::RegisterHotKey($h, 2, 0x4000, 0x05)
 })
 Render
-[void]$win.ShowDialog()
+# ponytail: Show() nao-modal + Dispatcher pump — ShowDialog nao tolera Hide/Show repetido
+$win.Show()
+[System.Windows.Threading.Dispatcher]::Run()
