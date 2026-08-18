@@ -197,16 +197,20 @@ function New-NoteRow([pscustomobject]$n) {
     $cb.Add_Checked({ param($s,$e)
         $nn = Get-Note $s.Tag
         if ($nn) { $nn.done = $true; Save-Notas }
-        $t = $s.Parent.Children[2]
-        $t.Foreground = [System.Windows.Media.BrushConverter]::new().ConvertFromString('#8B8E98')
-        $t.TextDecorations = $TextDecor
+        if ($s.Parent) {
+            $t = $s.Parent.Children[2]
+            $t.Foreground = [System.Windows.Media.BrushConverter]::new().ConvertFromString('#8B8E98')
+            $t.TextDecorations = $TextDecor
+        }
     })
     $cb.Add_Unchecked({ param($s,$e)
         $nn = Get-Note $s.Tag
         if ($nn) { $nn.done = $false; Save-Notas }
-        $t = $s.Parent.Children[2]
-        $t.Foreground = [System.Windows.Media.BrushConverter]::new().ConvertFromString('#E8E9EB')
-        $t.TextDecorations = $null
+        if ($s.Parent) {
+            $t = $s.Parent.Children[2]
+            $t.Foreground = [System.Windows.Media.BrushConverter]::new().ConvertFromString('#E8E9EB')
+            $t.TextDecorations = $null
+        }
     })
     $del.Add_Click({ param($s,$e)
         $script:notas = @($script:notas | Where-Object { $_.id -ne $s.Tag })
