@@ -46,8 +46,10 @@ function Add-Note {
 }
 function Find-ChildByType($parent,$type) {
     foreach ($c in $parent.Children) {
-        if ($c.GetType().Name -eq $type) { return $c }
-        if ($c.HasChildren) { $r = Find-ChildByType $c $type; if ($r) { return $r } }
+        if ($c.GetType().FullName -eq $type) { return $c }
+        if ($c -is [System.Windows.Controls.Panel] -and $c.Children.Count -gt 0) {
+            $r = Find-ChildByType $c $type; if ($r) { return $r }
+        }
     }
     return $null
 }
