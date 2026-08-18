@@ -1,5 +1,11 @@
 # mimir — sticky-note todolist widget, Windows. PowerShell + WPF nativo.
 $ErrorActionPreference = 'Stop'
+# ponytail: PS7 (pwsh) nao corre scriptblocks em callbacks Win32 (runspace-per-thread)
+# -> re-exec em Windows PowerShell 5.1, que e o que o .lnk e o codigo assumem
+if ($PSVersionTable.PSEdition -eq 'Core') {
+    Start-Process powershell.exe -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-WindowStyle','Hidden','-File', $PSCommandPath)
+    exit
+}
 Add-Type -AssemblyName PresentationFramework
 Add-Type -AssemblyName PresentationCore
 Add-Type -AssemblyName WindowsBase
