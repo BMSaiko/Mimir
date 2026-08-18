@@ -137,7 +137,7 @@ function New-NoteRow([pscustomobject]$n) {
     })
     $txt.Add_TextChanged({ param($s,$e)
         $nn = Get-Note $s.Tag
-        if ($nn) { $nn.texto = $s.Text; $nn.LastEdit = (Get-Date -Format o) }
+        if ($nn) { $nn.texto = $s.Text }
     })
     $txt.Add_LostFocus({ Save-Notas })
 
