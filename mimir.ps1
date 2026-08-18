@@ -268,8 +268,8 @@ $win.Add_SourceInitialized({
         }
         return [IntPtr]::Zero
     })
-    # id 1: ctrl+shift+< (MOD_CONTROL|MOD_SHIFT|MOD_NOREPEAT=0x4006), VK_OEM_COMMA=0xBC
-    [MimirHotkey]::RegisterHotKey($h, 1, 0x4006, 0xBC)
+    # id 1: ctrl+shift+> (MOD_CONTROL|MOD_SHIFT|MOD_NOREPEAT=0x4006), VK_OEM_PERIOD=0xBE
+    [MimirHotkey]::RegisterHotKey($h, 1, 0x4006, 0xBE)
 })
 # abre na posicao do mouse, sempre visivel (clamp ao working area)
 Add-Type -AssemblyName System.Windows.Forms
