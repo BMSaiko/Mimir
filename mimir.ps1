@@ -6,6 +6,13 @@ if ($PSVersionTable.PSEdition -eq 'Core') {
     Start-Process powershell.exe -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-WindowStyle','Hidden','-File', $PSCommandPath)
     exit
 }
+# ponytail: single-instance — 2a instancia sai logo (evita clobber no notas.json com last-write-wins)
+$script:mimirMutex = New-Object System.Threading.Mutex($false, 'mimir_single_instance')
+if (-not $script:mimirMutex.WaitOne(0, $false)) {
+    [System.Windows.MessageBox]::Show('O Mimir ja esta a correr.','Mimir') | Out-Null
+    exit
+}
+
 Add-Type -AssemblyName PresentationFramework
 Add-Type -AssemblyName PresentationCore
 Add-Type -AssemblyName WindowsBase
@@ -40,6 +47,8 @@ function Save-Notas {
 function Get-Note([string]$id) { $script:notas | Where-Object { $_.id -eq $id } | Select-Object -First 1 }
 function Add-Note {
     $n = [pscustomobject]@{ id=[guid]::NewGuid().ToString('N').Substring(0,8); texto=''; done=$false; prio='med'; subs=@() }
+    # ponytail: prune notas abandonadas (vazias, sem subs, nao-done). Sempre depois de add — nunca em edicao ativa.
+    $script:notas = @($script:notas | Where-Object { -not ([string]::IsNullOrWhiteSpace($_.texto) -and $_.subs.Count -eq 0 -and -not $_.done) })
     $script:notas = @($n) + @($script:notas)
     Save-Notas; Render
     foreach ($c in $List.Children) { if ($c.Tag -eq $n.id) { $tb = Find-ChildByType $c.Child 'System.Windows.Controls.TextBox'; if ($tb) { $tb.Focus() }; break } }
@@ -144,6 +153,7 @@ function Find-ChildByType($parent,$type) {
     <Grid>
       <Grid.RowDefinitions>
         <RowDefinition Height="Auto"/>
+        <RowDefinition Height="Auto"/>
         <RowDefinition Height="*"/>
       </Grid.RowDefinitions>
 
@@ -162,7 +172,11 @@ function Find-ChildByType($parent,$type) {
                    Foreground="{StaticResource muted}" FontSize="12" Margin="0,0,14,0"/>
       </DockPanel>
 
-      <ScrollViewer Grid.Row="1" x:Name="Scroller" VerticalScrollBarVisibility="Auto"
+      <ProgressBar Grid.Row="1" x:Name="Progress" Height="3" Minimum="0" Maximum="1"
+                   Foreground="{StaticResource accent}" Background="{StaticResource surface2}"
+                   BorderThickness="0" Margin="10,0,10,0"/>
+
+      <ScrollViewer Grid.Row="2" x:Name="Scroller" VerticalScrollBarVisibility="Auto"
                     HorizontalScrollBarVisibility="Disabled" Background="Transparent"
                     Padding="10,10,10,10">
         <StackPanel x:Name="List"/>
@@ -178,10 +192,23 @@ $AddBtn    = $win.FindName('AddBtn')
 $CloseBtn  = $win.FindName('CloseBtn')
 $Header    = $win.FindName('Header')
 $DoneText  = $win.FindName('DoneText')
+$Progress  = $win.FindName('Progress')
 
 $TextDecor = [System.Windows.TextDecorations]::Strikethrough
 $PrioColor = @{ low='#6EA8FE'; med='#F9C74F'; high='#F07178' }
 $PrioColorHex = @{ low='6EA8FE'; med='F9C74F'; high='F07178' }
+
+function Move-CardLast([object]$card) {
+    # ponytail: done demote sem rebuild — remove e re-insere no fim (evita recursao de Render no toggle)
+    $List.Children.Remove($card); $List.Children.Add($card) | Out-Null
+}
+function Move-CardToActive([object]$card) {
+    # ponytail: volta a por o card antes do primeiro done; ordem ativa preservada
+    $List.Children.Remove($card)
+    $i = 0
+    foreach ($c in $List.Children) { if ($c.Tag -and (Get-Note $c.Tag).done) { break }; $i++ }
+    if ($i -ge $List.Children.Count) { $List.Children.Add($card) | Out-Null } else { $List.Children.Insert($i, $card) }
+}
 
 function New-SubRow([pscustomobject]$n, [pscustomobject]$sub, [System.Windows.Controls.StackPanel]$subsHost) {
     $sr = New-Object System.Windows.Controls.DockPanel
@@ -233,7 +260,9 @@ function New-SubRow([pscustomobject]$n, [pscustomobject]$sub, [System.Windows.Co
         $nn = Get-Note $nid; if (-not $nn) { return }
         $ss = $nn.subs | Where-Object { $_.id -eq $sid } | Select-Object -First 1
         if ($ss) { $ss.texto = $s.Text }
+        $script:saveTimer.Stop(); $script:saveTimer.Start()
     })
+    $stxt.Add_LostFocus({ Save-Notas })
 
     $sr.AddChild($schk); $sr.AddChild($sdel); $sr.AddChild($stxt)  # ponytail: textbox ultimo = LastChildFill
     return $sr
@@ -348,17 +377,23 @@ function New-NoteRow([pscustomobject]$n) {
     # toggle done + edits
     $cb.Add_Checked({ param($s,$e)
         $nn = Get-Note $s.Tag
-        if ($nn) { $nn.done=$true; Save-Notas }
-        if ($s.Parent) { $tbx = Find-ChildByType $s.Parent 'System.Windows.Controls.TextBox'; if ($tbx) { $tbx.Foreground=[System.Windows.Media.BrushConverter]::new().ConvertFromString('#8B8E98'); $tbx.TextDecorations=$TextDecor } }
+        if ($nn) { $nn.done=$true; Save-Notas; Update-Progress }
+        if ($s.Parent) { $tbx = Find-ChildByType $s.Parent 'System.Windows.Controls.TextBox'; if ($tbx) { $tbx.Foreground=[System.Windows.Media.BrushConverter]::new().ConvertFromString('#8B8E98'); $tbx.TextDecorations=$TextDecor }
+            # ponytail: NAO usar closure $card (scriptblock de evento nao captura local da funcao -> $null)
+            $c = $List.Children | Where-Object { $_.Tag -eq $s.Tag } | Select-Object -First 1
+            if ($c) { Move-CardLast $c } }
     })
     $cb.Add_Unchecked({ param($s,$e)
         $nn = Get-Note $s.Tag
-        if ($nn) { $nn.done=$false; Save-Notas }
-        if ($s.Parent) { $tbx = Find-ChildByType $s.Parent 'System.Windows.Controls.TextBox'; if ($tbx) { $tbx.Foreground=[System.Windows.Media.BrushConverter]::new().ConvertFromString('#E8E9EB'); $tbx.TextDecorations=$null } }
+        if ($nn) { $nn.done=$false; Save-Notas; Update-Progress }
+        if ($s.Parent) { $tbx = Find-ChildByType $s.Parent 'System.Windows.Controls.TextBox'; if ($tbx) { $tbx.Foreground=[System.Windows.Media.BrushConverter]::new().ConvertFromString('#E8E9EB'); $tbx.TextDecorations=$null }
+            $c = $List.Children | Where-Object { $_.Tag -eq $s.Tag } | Select-Object -First 1
+            if ($c) { Move-CardToActive $c } }
     })
     $txt.Add_TextChanged({ param($s,$e)
         $nn = Get-Note $s.Tag
         if ($nn) { $nn.texto = $s.Text }
+        $script:saveTimer.Stop(); $script:saveTimer.Start()
     })
     $del.Add_Click({ param($s,$e)
         $script:notas = @($script:notas | Where-Object { $_.id -ne $s.Tag })
@@ -369,10 +404,18 @@ function New-NoteRow([pscustomobject]$n) {
     return $card
 }
 
-function Render {
-    $List.Children.Clear()
+function Update-Progress {
+    # ponytail: counters barra+texto — chamada no Render e nos toggles de done (evita rebuild da lista)
     $d = @($script:notas | Where-Object { $_.done }).Count
     $DoneText.Text = if ($script:notas.Count) { "$d/$($script:notas.Count)" } else { '' }
+    # ponytail: Maximum clamped a 1 para o ProgressBar nao rebentar com 0 notas
+    $Progress.Maximum = [Math]::Max(1, $script:notas.Count)
+    $Progress.Value   = if ($script:notas.Count) { $d } else { 0 }
+}
+
+function Render {
+    $List.Children.Clear()
+    Update-Progress
     if ($script:notas.Count -eq 0) {
         $t = New-Object System.Windows.Controls.TextBlock
         $t.Text = 'Sem notas — + para adicionar'
@@ -381,15 +424,25 @@ function Render {
         $List.Children.Add($t) | Out-Null
         return
     }
-    foreach ($n in $script:notas) {
+    # ponytail: done demote — só a ordem de exibicao, nunca muta $script:notas (ordem de criacao preservada no JSON)
+    $order = @($script:notas | Where-Object { -not $_.done }) + @($script:notas | Where-Object { $_.done })
+    foreach ($n in $order) {
         $List.Children.Add((New-NoteRow $n)) | Out-Null
     }
 }
 
 $Header.Add_MouseLeftButtonDown({ try { $win.DragMove() } catch {} })
 $AddBtn.Add_Click({ Add-Note })
-$CloseBtn.Add_Click({ $win.Close() })
+$CloseBtn.Add_Click({ Save-Notas; $script:mimirMutex.ReleaseMutex(); $win.Close() })
+# ponytail: Enter=add nota, Esc=commit/blur (so quando um TextBox tem foco)
+$win.Add_KeyDown({ param($s,$e)
+    if ($e.OriginalSource -is [System.Windows.Controls.TextBox]) {
+        if ($e.Key -eq [System.Windows.Input.Key]::Return)  { $e.Handled=$true; Add-Note }
+        elseif ($e.Key -eq [System.Windows.Input.Key]::Escape) { $e.Handled=$true; Save-Notas; $win.Focus() }
+    }
+})
 
+$win.Add_Closing({ if ($script:mimirMutex) { try { $script:mimirMutex.ReleaseMutex() } catch {} } })
 $win.Add_SourceInitialized({
     $h = (New-Object System.Windows.Interop.WindowInteropHelper($win)).Handle
     $src = [System.Windows.Interop.HwndSource]::FromHwnd($h)
@@ -401,16 +454,22 @@ $win.Add_SourceInitialized({
         }
         return [IntPtr]::Zero
     })
-    [MimirHotkey]::RegisterHotKey($h, 1, 0x0, 0x73)  # F4
+    $hk = [MimirHotkey]::RegisterHotKey($h, 1, 0x0, 0x73)  # F4
+    # ponytail: se F4 ja pertence a outra app, loga e segue (app ainda funciona via botoes)
+    if (-not $hk) { Add-Content $crashLog "HOTKEY: F4 ja registado por outra app" }
 })
 Add-Type -AssemblyName System.Windows.Forms
 $pos = [System.Windows.Forms.Cursor]::Position
 $area = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
 $w = 372; $h = 40
 $win.Left = [Math]::Max($area.Left, [Math]::Min($pos.X - $w/2, $area.Right - $w))
-$win.Top  = [Math]::Max($area.Top,  [Math]::Min($pos.Y - 20,  $area.Bottom - $h))
+$win.Top  = [Math]::Max($area.Top,  [Math]::Min($pos.Y - 20,  $area.Bottom - $h))# ponytail: T1 debounce de save — regrava 1.2s apos 1a tecla silenciosa, evita perda ao fechar
+$script:saveTimer = New-Object System.Windows.Threading.DispatcherTimer
+$script:saveTimer.Interval = [TimeSpan]::FromMilliseconds(1200)
+$script:saveTimer.Add_Tick({ $script:saveTimer.Stop(); Save-Notas })
+
 Render
-# ponytail: excecao de handler nao propaga ao callbak nativo (matava a janela silenciosamente)
+# ponytail: excecao de handler nao propaga ao callba nao propaga ao callbak nativo (matava a janela silenciosamente)
 $ErrorActionPreference = 'Continue'
 $crashLog = 'C:/Users/bruno/AppData/Local/Temp/mimir_crash.txt'
 $win.Dispatcher.add_UnhandledException({
