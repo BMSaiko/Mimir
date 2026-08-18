@@ -268,14 +268,16 @@ $win.Add_SourceInitialized({
         }
         return [IntPtr]::Zero
     })
-    # id 1: ctrl+alt+b (MOD_ALT|MOD_CONTROL|MOD_NOREPEAT=0x4003), vk 'B'=0x42
-    [MimirHotkey]::RegisterHotKey($h, 1, 0x4003, 0x42)
+    # id 1: ctrl+shift+< (MOD_CONTROL|MOD_SHIFT|MOD_NOREPEAT=0x4006), VK_OEM_COMMA=0xBC
+    [MimirHotkey]::RegisterHotKey($h, 1, 0x4006, 0xBC)
 })
-# abre na posicao do mouse (center do cursor)
+# abre na posicao do mouse, sempre visivel (clamp ao working area)
 Add-Type -AssemblyName System.Windows.Forms
 $pos = [System.Windows.Forms.Cursor]::Position
-$win.Left = $pos.X - (370 / 2)
-$win.Top  = $pos.Y - (20)
+$area = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
+$w = 370; $h = 40
+$win.Left = [Math]::Max($area.Left, [Math]::Min($pos.X - $w/2, $area.Right - $w))
+$win.Top  = [Math]::Max($area.Top,  [Math]::Min($pos.Y - 20,  $area.Bottom - $h))
 Render
 # ponytail: Show() nao-modal + Dispatcher pump — ShowDialog nao tolera Hide/Show repetido
 $win.Show()
