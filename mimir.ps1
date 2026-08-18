@@ -140,12 +140,12 @@ function Find-ChildByType($parent,$type) {
                  LastChildFill="False" Height="48">
         <Rectangle DockPanel.Dock="Left" Width="3" Fill="{StaticResource accent}"/>
         <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0,0,0">
-          <TextBlock Text="ᛗ" Foreground="{StaticResource accent}" FontSize="17" FontWeight="Bold" Margin="0,0,7,0"/>
+          <TextBlock Text="ᛗ" Foreground="{StaticResource accent}" FontSize="17" FontWeight="Bold" Margin="0,0,7,0" FontFamily="Segoe UI Historic"/>
           <TextBlock Text="mimir" Foreground="{StaticResource text}" FontSize="15" FontWeight="SemiBold"/>
         </StackPanel>
-        <Button x:Name="CloseBtn" DockPanel.Dock="Right" Content="✕" Style="{StaticResource FlatBtn}"
+        <Button x:Name="CloseBtn" DockPanel.Dock="Right" Content="×" Style="{StaticResource FlatBtn}"
                 Foreground="{StaticResource muted}" Width="34" Height="30" Margin="0,9,6,9"/>
-        <Button x:Name="AddBtn"   DockPanel.Dock="Right" Content="＋" Style="{StaticResource FlatBtn}"
+        <Button x:Name="AddBtn"   DockPanel.Dock="Right" Content="+" Style="{StaticResource FlatBtn}"
                 Foreground="{StaticResource accent}" Width="34" Height="30" Margin="0,9,0,9"/>
         <TextBlock x:Name="DoneText" DockPanel.Dock="Right" VerticalAlignment="Center"
                    Foreground="{StaticResource muted}" FontSize="12" Margin="0,0,14,0"/>
@@ -188,7 +188,7 @@ function New-SubRow([pscustomobject]$n, [pscustomobject]$sub, [System.Windows.Co
     if ($sub.done) { $stxt.Foreground=[System.Windows.Media.BrushConverter]::new().ConvertFromString('#8B8E98'); $stxt.TextDecorations=$TextDecor }
 
     $sdel = New-Object System.Windows.Controls.Button
-    $sdel.Content = '✕'
+    $sdel.Content = '×'
     $sdel.Tag = @($n.id, $sub.id)
     $sdel.Width=18; $sdel.Height=18; $sdel.FontSize=11
     $sdel.Foreground=[System.Windows.Media.BrushConverter]::new().ConvertFromString('#E57A7A')
@@ -279,7 +279,7 @@ function New-NoteRow([pscustomobject]$n) {
         $act.AddChild($dot) | Out-Null
     }
     $del = New-Object System.Windows.Controls.Button
-    $del.Content = '✕'
+    $del.Content = '×'
     $del.Width=22; $del.Height=22; $del.FontSize=12
     $del.Margin=[System.Windows.Thickness]::new(0,0,0,0)
     $del.Tag = $n.id
@@ -306,7 +306,7 @@ function New-NoteRow([pscustomobject]$n) {
 
     # subtask toggle button: colocado no action trailing
     $subBtn = New-Object System.Windows.Controls.Button
-    $subBtn.Content = '▾'
+    $subBtn.Content = '+'
     $subBtn.Width=22; $subBtn.Height=22; $subBtn.FontSize=12
     $subBtn.Margin=[System.Windows.Thickness]::new(0,0,4,0)
     $subBtn.Tag = $n.id
@@ -326,10 +326,10 @@ function New-NoteRow([pscustomobject]$n) {
             $host_.Children.Clear()
             foreach ($sub in $nn.subs) { $host_.Children.Add((New-SubRow $nn $sub $host_)) | Out-Null }
             $host_.Visibility = 'Visible'
-            $s.Content = '▴'
+            $s.Content = '-'
         } else {
             $host_.Visibility = 'Collapsed'
-            $s.Content = '▾'
+            $s.Content = '+'
         }
     })
     $act.Children.Insert(0, $subBtn) | Out-Null
@@ -364,7 +364,7 @@ function Render {
     $DoneText.Text = if ($script:notas.Count) { "$d/$($script:notas.Count)" } else { '' }
     if ($script:notas.Count -eq 0) {
         $t = New-Object System.Windows.Controls.TextBlock
-        $t.Text = 'Sem notas — ＋ para adicionar'
+        $t.Text = 'Sem notas — + para adicionar'
         $t.Foreground = [System.Windows.Media.BrushConverter]::new().ConvertFromString('#8B8E98')
         $t.Margin = [System.Windows.Thickness]::new(6,22,0,0)
         $List.Children.Add($t) | Out-Null
