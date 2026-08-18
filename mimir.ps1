@@ -39,7 +39,7 @@ function Add-Note {
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="mimir" WindowStyle="None" AllowsTransparency="True"
         Background="Transparent" Topmost="True" ShowInTaskbar="False"
-        Width="370" Height="520" Left="60" Top="60" ResizeMode="NoResize">
+        Width="370" Height="520" ResizeMode="NoResize">
   <Window.Resources>
     <!-- paleta: bronze/ouro (poço de Mimir), carvão profundo -->
     <SolidColorBrush x:Key="bg"        Color="#141518"/>
@@ -270,9 +270,12 @@ $win.Add_SourceInitialized({
     })
     # id 1: ctrl+alt+b (MOD_ALT|MOD_CONTROL|MOD_NOREPEAT=0x4003), vk 'B'=0x42
     [MimirHotkey]::RegisterHotKey($h, 1, 0x4003, 0x42)
-    # id 2: mouse5 (MOD_NOREPEAT=0x4000), XBUTTON2 vk=0x05
-    [MimirHotkey]::RegisterHotKey($h, 2, 0x4000, 0x05)
 })
+# abre na posicao do mouse (center do cursor)
+Add-Type -AssemblyName System.Windows.Forms
+$pos = [System.Windows.Forms.Cursor]::Position
+$win.Left = $pos.X - (370 / 2)
+$win.Top  = $pos.Y - (20)
 Render
 # ponytail: Show() nao-modal + Dispatcher pump — ShowDialog nao tolera Hide/Show repetido
 $win.Show()
