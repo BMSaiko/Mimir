@@ -42,6 +42,13 @@ class Api:
     def nid(self):
         return uuid.uuid4().hex[:8]
 
+    def _set_window(self, w):
+        self._w = w
+
+    def quit(self):
+        self._w.destroy()
+        return True
+
     def now(self):
         return datetime.now().isoformat(timespec="seconds")
 
@@ -115,8 +122,8 @@ HTML = r"""<!DOCTYPE html>
   <header>
     <span class="brand">ᛗ <b>mimir</b></span>
     <span class="spacer"></span>
-    <button class="ico add" id="add" title="Nova nota">＋</button>
-    <button class="ico close" id="close" title="Fechar">✕</button>
+    <button class="ico add" id="addbtn" title="Nova nota">＋</button>
+    <button class="ico quit" id="quit" title="Fechar">✕</button>
   </header>
   <main id="list"></main>
 </div>
@@ -156,7 +163,7 @@ async function persist(){ await api.set(notas); }
 
 function find(id){ return notas.find(x=>x.id===id); }
 
-async function add(){ notas.unshift({id:await api.nid(),texto:'',done:false,prio:'med',subs:[],criada:await api.now(),atualizada:await api.now()}); render(); focusLast(); persist(); }
+async function addNote(){ notas.unshift({id:await api.nid(),texto:'',done:false,prio:'med',subs:[],criada:await api.now(),atualizada:await api.now()}); render(); focusLast(); persist(); }
 function focusLast(){ const t=document.querySelector('.note textarea'); if(t) t.focus(); }
 
 async function tog(id){ const n=find(id); n.done=!n.done; n.atualizada=await api.now(); render(); persist(); }
@@ -167,8 +174,8 @@ async function addsub(id){ const n=find(id); (n.subs=n.subs||[]).push({texto:'',
 async function del(id){ notas=notas.filter(x=>x.id!==id); render(); persist(); }
 async function prio(id,p){ const n=find(id); n.prio=p; n.atualizada=await api.now(); render(); persist(); }
 
-document.getElementById('add').onclick = add;
-document.getElementById('close').onclick = () => { window.close(); };  // pywebview closes window
+document.getElementById('addbtn').addEventListener('click', addNote);
+document.getElementById('quit').addEventListener('click', () => api.quit());  // pywebview closes window
 // drag handled natively via easy_drag
 
 load();
@@ -186,6 +193,7 @@ def main():
         frameless=True, easy_drag=True, on_top=True,
         background_color="#1a1b1e", transparent=False,
     )
+    api._set_window(window)
     webview.start()
 
 
