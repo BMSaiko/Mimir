@@ -1,6 +1,7 @@
 # Mimir — Tasks & Planos Detalhados (DP)
 
 > Plano de melhoria incremental da app Mimir (sticky-note todo, PowerShell + WPF nativo, ficheiro único `mimir.ps1`, zero dependências).
+> Estado: **T1–T7 DONE** (commit e6b43e8). T8+ em brainstorm abaixo.
 > Método: **uma tarefa de cada vez**. Executar → testar → fechar → passar à seguinte.
 > Commit: NUNCA auto-commit — gerar mensagem e BMS confirma.
 
@@ -15,13 +16,13 @@
 
 | ID | Título | Tipo | Esforço |
 |----|--------|------|---------|
-| T1 | Debounce de save (evita perda de texto) | BUG | S |
-| T2 | Auto-prune notas vazias | Clutter | S |
-| T3 | Enter cria nota + Esc faz commit/blur | UX | S |
-| T4 | Progress bar no header | UX | S |
-| T5 | Done demote para o fundo | UX | S |
-| T6 | Lembrar posição da janela | UX | S |
-| T7 | Single-instance (Mutex) + assinatura hotkey | Robustez | M |
+| ~~T1~~ | ~~Debounce de save~~ | DONE | S |
+| ~~T2~~ | ~~Auto-prune notas vazias~~ | DONE | S |
+| ~~T3~~ | ~~Enter cria nota + Esc commit~~ | DONE | S |
+| ~~T4~~ | ~~Progress bar no header~~ | DONE | S |
+| ~~T5~~ | ~~Done demote para o fundo~~ | DONE | S |
+| ~~T6~~ | ~~Lembrar posição da janela~~ | DONE | S |
+| ~~T7~~ | ~~Single-instance (Mutex) + assinatura hotkey~~ | DONE | M |
 
 **Decisões default (pendentes de veto BMS):**
 - T5: demote automático (done vai para o fundo). NÃO adicionar toggle "esconder done".
@@ -128,3 +129,37 @@
 - Edições sempre em `mimir.ps1` (ficheiro único). Dados em `~/.mimir/notas.json`; log em `C:/Users/bruno/AppData/Local/Temp/mimir_crash.txt`.
 - NUNCA auto-commit. Commit message gerado e BMS confirma.
 - Após cada T: smoke check — sintaxe `[System.Management.Automation.Language.Parser]::ParseFile(...)` + teste de partes não-GUI se aplicável (ver skill `powershell-wpf-desktop`).
+
+
+---
+
+## Brainstorm — T8+ (novas candidatas, não agendadas)
+
+Ideias do DI no código atual. Ordenadas por valor/esforço. Veto livre.
+
+### Alta prioridade
+- **T8 — Marcar done nas subtarefas conta para o progresso?** Hoje subs têm checkbox mas não entram no `Update-Progress`. Decisão de produto: querer que subs done contem? (provavelmente não — manter simples)
+- **T9 — Dropdown/ordenação manual**: arrastar notas para reordenar? WPF nativo é doloroso (drag-drop). Skip a menos que peças.
+- **T10 — Persistir expansão das subtarefas**: hoje abrir/collapse subs é volátil (Render recolapsa). Guardar `subsExpanded` por nota.
+
+### Média prioridade (UX real)
+- **T11 — Escala/paleta**: tema claro? Hoje dark-only. `$PrioColor` hardcoded. Um toggle dark/light no header.
+- **T12 — Contador em subs done**: mostrar "2/5" na nota com subs (além da barra global).
+- **T13 — Enter num campo existente adiciona linha nova vs Enter cria nota**: hoje Enter cria nota nova sempre. Talvez Enter num sub adicione sub.
+
+### Baixa prioridade / YAGNI até pedires
+- T14 — Export/import JSON manual (já é JSON, é trivial mas raramente necessário).
+- T15 — Undo/redo (overkill para widget).
+- T16 — Sincronização cloud/multi-device (fora de scope, App pessoal local).
+- T17 — Notificações/lembretes (fora do propósito sticky-note).
+- T18 — Regravação compacta: compactar `$script:notas` após N prunes (micro).
+
+### Bug-fixes candidatos (do DI)
+- T19 — `Add-Content $crashLog` no handler de hotkey: `$crashLog` é definido depois de `$win.Add_SourceInitialized` — em runtime o hotkey dispara depois, mas por robustez mover def de `$crashLog` para cima (evita erro se F4 falhar antes da def).
+- T20 — Prune T2 também no boot: hoje só no Add-Note; notas vazias no JSON de sessões antigas persistem até próximo `+`. Limpar no load.
+
+### Recomendação imediata (alto valor, baixo esforço)
+- **T19** (crashLog antes) — 1 linha, evita edge case real.
+- **T20** (prune no boot) — 1 linha, limpa o histórico de 17 instâncias que podes ter criado.
+- **T10** (persistir subs expanded) — se usas subs com frequência.
+- **T11** (tema claro) — se queres alternar.
