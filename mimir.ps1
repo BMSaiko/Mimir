@@ -45,7 +45,10 @@ function Add-Note {
     foreach ($c in $List.Children) { if ($c.Tag -eq $n.id) { $tb = Find-ChildByType $c.Child 'System.Windows.Controls.TextBox'; if ($tb) { $tb.Focus() }; break } }
 }
 function Find-ChildByType($parent,$type) {
-    foreach ($c in $parent.Children) { if ($c.GetType().Name -eq $type) { return $c } }
+    foreach ($c in $parent.Children) {
+        if ($c.GetType().Name -eq $type) { return $c }
+        if ($c.HasChildren) { $r = Find-ChildByType $c $type; if ($r) { return $r } }
+    }
     return $null
 }
 [xml]$xaml = @'
@@ -122,6 +125,12 @@ function Find-ChildByType($parent,$type) {
       <Setter Property="Foreground" Value="{StaticResource text}"/>
       <Setter Property="FontSize" Value="13"/>
       <Setter Property="FontFamily" Value="Segoe UI"/>
+      <Style.Triggers>
+        <Trigger Property="IsKeyboardFocusWithin" Value="True">
+          <Setter Property="Background" Value="{StaticResource surface2}"/>
+          <Setter Property="FontWeight" Value="SemiBold"/>
+        </Trigger>
+      </Style.Triggers>
     </Style>
   </Window.Resources>
 
