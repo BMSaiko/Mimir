@@ -97,7 +97,7 @@ function New-NoteRow([pscustomobject]$n) {
     $cb.Margin = '4,8,10,0'
     $cb.VerticalAlignment = 'Top'
     $cb.Foreground = '#6EE7A0'
-    DockPanel.SetDock($cb, 'Left')
+    [System.Windows.Controls.DockPanel]::SetDock($cb, 'Left')
 
     $del = New-Object System.Windows.Controls.Button
     $del.Tag = $n.id
@@ -110,7 +110,7 @@ function New-NoteRow([pscustomobject]$n) {
     $del.FontSize = 14
     $del.Cursor = 'Hand'
     $del.ToolTip = 'Apagar nota'
-    DockPanel.SetDock($del, 'Right')
+    [System.Windows.Controls.DockPanel]::SetDock($del, 'Right')
 
     $txt = New-Object System.Windows.Controls.TextBox
     $txt.Tag = $n.id
