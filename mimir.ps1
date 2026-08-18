@@ -224,7 +224,7 @@ function New-SubRow([pscustomobject]$n, [pscustomobject]$sub, [System.Windows.Co
         if ($ss) { $ss.texto = $s.Text }
     })
 
-    $sr.AddChild($schk); $sr.AddChild($stxt); $sr.AddChild($sdel)
+    $sr.AddChild($schk); $sr.AddChild($sdel); $sr.AddChild($stxt)  # ponytail: textbox ultimo = LastChildFill
     return $sr
 }
 
