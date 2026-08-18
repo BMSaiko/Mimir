@@ -4,6 +4,14 @@ Add-Type -AssemblyName PresentationFramework
 Add-Type -AssemblyName PresentationCore
 Add-Type -AssemblyName WindowsBase
 
+Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+public static class MimirHotkey {
+  [DllImport("user32.dll")] public static extern bool RegisterHotKey(IntPtr hWnd, int id, uint mods, uint vk);
+}
+"@
+
 $dataDir  = Join-Path $env:USERPROFILE '.mimir'
 $dataFile = Join-Path $dataDir 'notas.json'
 
@@ -248,5 +256,22 @@ $Header.Add_MouseLeftButtonDown({ try { $win.DragMove() } catch {} })
 $AddBtn.Add_Click({ Add-Note })
 $CloseBtn.Add_Click({ $win.Close() })
 
+# --- global hotkey (native RegisterHotKey): ctrl+alt+b e mouse5 alternam janela
+$win.Add_SourceInitialized({
+    $h = (New-Object System.Windows.Interop.WindowInteropHelper($win)).Handle
+    $src = [System.Windows.Interop.HwndSource]::FromHwnd($h)
+    $src.AddHook({
+        param($hwnd,$msg,$w,$l,$handled)
+        if ($msg -eq 0x0312) {   # WM_HOTKEY
+            if ($win.IsVisible) { $win.Hide() } else { $win.Show() }
+            $handled = $true
+        }
+        return [IntPtr]::Zero
+    })
+    # id 1: ctrl+alt+b (MOD_ALT|MOD_CONTROL|MOD_NOREPEAT=0x4003), vk 'B'=0x42
+    [MimirHotkey]::RegisterHotKey($h, 1, 0x4003, 0x42)
+    # id 2: mouse5 (MOD_NOREPEAT=0x4000), XBUTTON2 vk=0x05
+    [MimirHotkey]::RegisterHotKey($h, 2, 0x4000, 0x05)
+})
 Render
 [void]$win.ShowDialog()
