@@ -27,6 +27,8 @@ public static class MimirHotkey {
 
 $dataDir  = Join-Path $env:USERPROFILE '.mimir'
 $dataFile = Join-Path $dataDir 'notas.json'
+# ponytail: crashLog definido cedo — usado no SourceInitialized (hotkey) antes da def no fim
+$crashLog = 'C:/Users/bruno/AppData/Local/Temp/mimir_crash.txt'
 
 $script:notas = @()
 if (Test-Path $dataFile) {
@@ -39,7 +41,12 @@ $script:notas = @($script:notas | ForEach-Object {
     if (-not $o.PSObject.Properties['subs'])  { $o | Add-Member -NotePropertyName subs  -NotePropertyValue @() -Force }
     $o
 })
+Prune-Empty   # ponytail: limpa vazios de sessoes antigas (T20)
 
+function Prune-Empty {
+    # ponytail: remove notas abandonadas (vazias, sem subs, nao-done). No boot e no Add — nunca em edicao ativa.
+    $script:notas = @($script:notas | Where-Object { -not ([string]::IsNullOrWhiteSpace($_.texto) -and $_.subs.Count -eq 0 -and -not $_.done) })
+}
 function Save-Notas {
     if (-not (Test-Path $dataDir)) { New-Item -ItemType Directory -Path $dataDir | Out-Null }
     ($script:notas | ConvertTo-Json -Depth 5) | Set-Content $dataFile -Encoding UTF8
@@ -47,8 +54,7 @@ function Save-Notas {
 function Get-Note([string]$id) { $script:notas | Where-Object { $_.id -eq $id } | Select-Object -First 1 }
 function Add-Note {
     $n = [pscustomobject]@{ id=[guid]::NewGuid().ToString('N').Substring(0,8); texto=''; done=$false; prio='med'; subs=@() }
-    # ponytail: prune notas abandonadas (vazias, sem subs, nao-done). Sempre depois de add — nunca em edicao ativa.
-    $script:notas = @($script:notas | Where-Object { -not ([string]::IsNullOrWhiteSpace($_.texto) -and $_.subs.Count -eq 0 -and -not $_.done) })
+    Prune-Empty
     $script:notas = @($n) + @($script:notas)
     Save-Notas; Render
     foreach ($c in $List.Children) { if ($c.Tag -eq $n.id) { $tb = Find-ChildByType $c.Child 'System.Windows.Controls.TextBox'; if ($tb) { $tb.Focus() }; break } }
@@ -471,7 +477,6 @@ $script:saveTimer.Add_Tick({ $script:saveTimer.Stop(); Save-Notas })
 Render
 # ponytail: excecao de handler nao propaga ao callba nao propaga ao callbak nativo (matava a janela silenciosamente)
 $ErrorActionPreference = 'Continue'
-$crashLog = 'C:/Users/bruno/AppData/Local/Temp/mimir_crash.txt'
 $win.Dispatcher.add_UnhandledException({
     param($sender, $e)
     Add-Content $crashLog ("CRASH: " + $e.Exception.ToString())

@@ -1,7 +1,7 @@
 # Mimir — Tasks & Planos Detalhados (DP)
 
 > Plano de melhoria incremental da app Mimir (sticky-note todo, PowerShell + WPF nativo, ficheiro único `mimir.ps1`, zero dependências).
-> Estado: **T1–T7 DONE** (commit e6b43e8). T8+ em brainstorm abaixo.
+> Estado: **T1–T7 + T19 + T20 DONE**. T8+ em brainstorm abaixo.
 > Método: **uma tarefa de cada vez**. Executar → testar → fechar → passar à seguinte.
 > Commit: NUNCA auto-commit — gerar mensagem e BMS confirma.
 
@@ -163,3 +163,80 @@ Ideias do DI no código atual. Ordenadas por valor/esforço. Veto livre.
 - **T20** (prune no boot) — 1 linha, limpa o histórico de 17 instâncias que podes ter criado.
 - **T10** (persistir subs expanded) — se usas subs com frequência.
 - **T11** (tema claro) — se queres alternar.
+
+---
+
+## DP T8–T20 (detalhe)
+
+### T8 — Subs done contam para o progresso?
+**DR:** `Update-Progress` conta só `$_.done` das notas; `subs` ignoradas.
+**DP:** manter como está. Progresso global = notas, subs são detalhe. Um sub done a mexer na barra global é ruído.
+**Pitfalls:** nenhum.
+**Verificação:** N/A (skip). Se quiseres, o caminho é: `$d += subs done / total subs` por nota expandida — não vale o custo.
+
+### T9 — Drag-drop reordenação manual
+**DP:** SKIP. WPF nativo sem framework de drag-drop = `MouseMove`+hit-test+reparenting, ~100 linhas frágeis. O `$script:notas` mantém ordem de criação; reordenar visual ≠ reordenar dados. Valor baixo p/ widget de notas.
+**Pitfalls:** (aplicável se insistires) reordenar a array + manter IDs únicos.
+**Verificação:** N/A.
+
+### T10 — Persistir expansão das subtarefas
+**DR:** `subsHost.Visibility='Collapsed'` default; `subBtn` toggle só em memória. `Render` reconstrói → collapse sempre.
+**DP:**
+1. No load, `Add-Member -Force` `expanded` (default `$false`) a cada nota (padrão já usado p/ `prio`/`subs`).
+2. No `$subBtn.Add_Click`, além do toggle visual: `$nn.expanded = $host_.Visibility -eq 'Visible'` + `Save-Notas`.
+3. Em `New-NoteRow`, inicializar `$host_.Visibility` a partir de `$n.expanded` (e `$s.Content` `+`/`-` correspondente) em vez de `'Collapsed'` fixo.
+**Pitfalls:** PSCustomObject do JSON não aceita property nova → `Add-Member -Force` (padrão já no ficheiro).
+**Verificação:** abrir subs, fechar mimir, reabrir → subs continuam abertas.
+
+### T11 — Tema claro (toggle dark/light)
+**DP:** uma variável `$script:dark=$true` no topo; guardar em notas.json. No `Render`, escolher o `SolidColorBrush` por tema. Mas: **as cores estão hardcoded em XAML (`<SolidColorBrush x:Key="bg">`)** — tema em runtime exigiria trocar todos os `StaticResource` por DynamicResource + re-aplicar brush. Não é 1 linha.
+**Pitfalls:** XAML StaticResource não muda em runtime.
+**Verificação:** N/A até decidires. Valor: baixo p/ tool pessoal dark-first.
+
+### T12 — Contador "2/5" em subs done
+**DR:** nota com subs não mostra progresso parcial da própria nota.
+**DP:** no `New-NoteRow`, quando `$n.subs.Count -gt 0`, adicionar `TextBlock "d/count"` no header do card; atualizar no `$subsHost` toggle. Reusar `Update-Progress` (mesmo `$d/$count`).
+**Pitfalls:** sem `Render` no toggle de sub (rebuild recolapsa). TextBlock dedicado + atualização inline.
+**Verificação:** abrir subs, marcar 1 → "1/3" na nota.
+
+### T13 — Enter em sub adiciona sub
+**DP:** hoje `$win.Add_KeyDown` (T3) faz `Add-Note` em qualquer Enter. Opcional: se foco está num stxt, adicionar sub nova à nota. SKIP por agora — confunde o Enter global; subs criam-se pelo botão `+` da nota. Se quiseres, o handler distingue `$e.OriginalSource.Tag` (stxt vs txt).
+**Pitfalls:** Enter no último stxt + Enter para nova nota = conflito de atalho.
+**Verificação:** N/A (skip).
+
+### T14 — Export/import JSON manual
+**DP:** o formato já é JSON em `~/.mimir/notas.json`. Export = copiar o ficheiro. SKIP — funcionalidade nativa do SO.
+
+### T15 — Undo/redo
+**DP:** SKIP. Widget de notas rápidas; o debounce já evita perda. Undo exigiria snapshot por ação.
+
+### T16 — Cloud sync
+**DP:** SKIP. App local, dados privados. Fora de scope.
+
+### T17 — Lembretes/notificações
+**DP:** SKIP. Sticky-note ≠ lembrete com alarme.
+
+### T18 — Compactação pós-prune
+**DP:** SKIP. O JSON é pequeno; `Save-Notas` regrava tudo com `ConvertTo-Json` — já compacto.
+
+### T19 — Mover `$crashLog` para cima (bug-fix)
+**DR:** `$crashLog` definido perto do fim (`$crashLog='C:/.../mimir_crash.txt'`), mas o handler `$win.Add_SourceInitialized` (que pode `Add-Content $crashLog` se hotkey falhar) é registado ANTES. Se F4 falhar entre SourceInitialized e a def, `$crashLog` é `$null` → erro no próprio handler de erro.
+**DP:**
+1. Mover `$crashLog = 'C:/Users/bruno/AppData/Local/Temp/mimir_crash.txt'` para junto do `$dataDir` (topo), antes do `Add_SourceInitialized`.
+2. Apagar a def duplicada no fim.
+**Pitfalls:** garantir CRLF/BOM na escrita. `$crashLog` já é path absoluto.
+**Verificação:** Parser SYNTAX OK + F4 registado OK → log não é escrito (sem erro).
+
+### T20 — Prune no boot (bug-fix)
+**DR:** prune T2 só em `Add-Note`; notas vazias de sessões antigas persistem no JSON até o próximo `+`.
+**DP:**
+1. Extrair a linha de prune para função `Prune-Empty` (ou inline reusado).
+2. Chamar no load, depois da normalização (antes do primeiro `Render`).
+**Pitfalls:** manter o guard "nunca remover nota em edição" — no boot ninguém está a editar, safe.
+**Verificação:** criar notas vazias, reler, boot → some.
+
+---
+
+## Ordem recomendada para T8+
+**T19 → T20** (1 linha cada, bug-fixes) → **T10** (se usas subs) → **T12** (opcional)
+Skip: T8, T9, T11 (até decidires), T13–T18.
