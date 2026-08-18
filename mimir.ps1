@@ -400,4 +400,11 @@ $win.Left = [Math]::Max($area.Left, [Math]::Min($pos.X - $w/2, $area.Right - $w)
 $win.Top  = [Math]::Max($area.Top,  [Math]::Min($pos.Y - 20,  $area.Bottom - $h))
 Render
 $win.Show()
+# ponytail: nunca deixar excecao de handler matar a app silenciosamente
+$crashLog = 'C:/Users/bruno/AppData/Local/Temp/mimir_crash.txt'
+Register-ObjectEvent -InputObject $win.Dispatcher -EventName UnhandledException -Action {
+    Add-Content $crashLog ("CRASH: " + $event.SourceEventArgs.Exception.ToString())
+    Add-Content $crashLog ("STACK: " + $event.SourceEventArgs.Exception.StackTrace)
+    $event.SourceEventArgs.Handled = $true
+} | Out-Null
 [System.Windows.Threading.Dispatcher]::Run()
