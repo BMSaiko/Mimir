@@ -8,7 +8,11 @@ if ($PSVersionTable.PSEdition -eq 'Core') {
 }
 # ponytail: single-instance — 2a instancia sai logo (evita clobber no notas.json com last-write-wins)
 $script:mimirMutex = New-Object System.Threading.Mutex($false, 'mimir_single_instance')
-if (-not $script:mimirMutex.WaitOne(0, $false)) {
+# ponytail: AbandonedMutexException se dono anterior terminou sem release -> nos somos dono agora
+$script:mimirOwned = $false
+try { $script:mimirOwned = $script:mimirMutex.WaitOne(0, $false) }
+catch [System.Threading.AbandonedMutexException] { $script:mimirOwned = $true }
+if (-not $script:mimirOwned) {
     [System.Windows.MessageBox]::Show('O Mimir ja esta a correr.','Mimir') | Out-Null
     exit
 }
@@ -27,6 +31,16 @@ public static class MimirHotkey {
 
 $dataDir  = Join-Path $env:USERPROFILE '.mimir'
 $dataFile = Join-Path $dataDir 'notas.json'
+
+# ponytail: crashLog + handler ligados no topo — boot errors gravados, nunca morte silenciosa
+$crashLog = 'C:/Users/bruno/AppData/Local/Temp/mimir_crash.txt'
+$ErrorActionPreference = 'Continue'
+[System.Windows.Threading.Dispatcher]::CurrentDispatcher.add_UnhandledException({
+    param($sender, $e)
+    Add-Content $crashLog ("CRASH: " + $e.Exception.ToString())
+    Add-Content $crashLog ("STACK: " + $e.Exception.StackTrace)
+    $e.Handled = $true
+})
 
 $script:notas = @()
 if (Test-Path $dataFile) {
@@ -470,14 +484,5 @@ $script:saveTimer.Add_Tick({ $script:saveTimer.Stop(); Save-Notas })
 
 Prune-Empty   # ponytail: limpa vazios de sessoes antigas (T20) — chamada apos defs
 Render
-# ponytail: excecao de handler nao propaga ao callba nao propaga ao callbak nativo (matava a janela silenciosamente)
-$ErrorActionPreference = 'Continue'
-$crashLog = 'C:/Users/bruno/AppData/Local/Temp/mimir_crash.txt'
-$win.Dispatcher.add_UnhandledException({
-    param($sender, $e)
-    Add-Content $crashLog ("CRASH: " + $e.Exception.ToString())
-    Add-Content $crashLog ("STACK: " + $e.Exception.StackTrace)
-    $e.Handled = $true
-})
 $win.Show()
 [System.Windows.Threading.Dispatcher]::Run()
