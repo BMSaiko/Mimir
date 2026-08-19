@@ -468,6 +468,7 @@ $script:saveTimer = New-Object System.Windows.Threading.DispatcherTimer
 $script:saveTimer.Interval = [TimeSpan]::FromMilliseconds(1200)
 $script:saveTimer.Add_Tick({ $script:saveTimer.Stop(); Save-Notas })
 
+Prune-Empty   # ponytail: limpa vazios de sessoes antigas (T20) — chamada apos defs
 Render
 # ponytail: excecao de handler nao propaga ao callba nao propaga ao callbak nativo (matava a janela silenciosamente)
 $ErrorActionPreference = 'Continue'
