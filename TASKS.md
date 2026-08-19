@@ -237,6 +237,24 @@ Ideias do DI no código atual. Ordenadas por valor/esforço. Veto livre.
 
 ---
 
+---
+
+### T21 — Boot: AbandonedMutexException + call-before-def (bug-fix, 2026-08-19)
+**Sintoma:** "Mimir não abre e não dá erros" — processo morre aos ~0.8s, RC=1, console oculto.
+
+**DR (2 causas em cadeia, no boot):**
+1. **Call-before-def:** `Prune-Empty` chamado (antiga linha 44) ANTES da `function Prune-Empty` (linha 46) → `CommandNotFoundException` em runtime (PS resolve defs só quando a execução passa por elas). `$ErrorActionPreference='Stop'` no boot → exceção terminating → morte silenciosa.
+2. **AbandonedMutexException (raiz persistente):** dono anterior do mutex morreu sem `ReleaseMutex` (kill-forçado ou crash) → Win32 marca o mutex como *abandoned* → `WaitOne(0,$false)` **LANÇA** `AbandonedMutexException` (não devolve bool). Com `Stop` ativo → terminating → saída silenciosa. Auto-sustentado: um mutex abandoned fica abandoned até alguém o adquirir; o código lançava em vez de adquirir.
+
+**Fix:**
+1. Mover a chamada boot de `Prune-Empty` para depois das defs (antes do boot `Render`).
+2. Envolver `WaitOne` em try/catch `[AbandonedMutexException]` → tratar como dono agora (`$script:mimirOwned=$true`).
+3. `$crashLog` + `$ErrorActionPreference='Continue'` + `add_UnhandledException` movidos para o TOPO do script (antes de qualquer boot) — crashes de boot ficam gravados em `mimir_crash.txt`, nunca mais morte silenciosa. Eliminar o bloco tardio duplicado.
+
+**Verificação (harness interno):** boot→pump → `$win.Show()` → `IsVisible=True ActualWidth=372 ActualHeight=520`. Launcher real: PID vivo >8s (antes morria aos 0.8s). Parser SYNTAX OK.
+
+**Pitfall aprendido:** "processo vivo" numa probe externa pode ser um PID **stale** (código antigo em memória) — não prova a instância nova. Usar harness INJETADO no script real (DispatcherTimer que loga `$win.IsVisible` p/ ficheiro), não screenshots/probes externas.
+
 ## Ordem recomendada para T8+
 **T19 → T20** (1 linha cada, bug-fixes) → **T10** (se usas subs) → **T12** (opcional)
 Skip: T8, T9, T11 (até decidires), T13–T18.
