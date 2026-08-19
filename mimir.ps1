@@ -8,7 +8,11 @@ if ($PSVersionTable.PSEdition -eq 'Core') {
 }
 # ponytail: single-instance — 2a instancia sai logo (evita clobber no notas.json com last-write-wins)
 $script:mimirMutex = New-Object System.Threading.Mutex($false, 'mimir_single_instance')
-if (-not $script:mimirMutex.WaitOne(0, $false)) {
+# ponytail: AbandonedMutexException se dono anterior terminou sem release -> nos somos dono agora
+$script:mimirOwned = $false
+try { $script:mimirOwned = $script:mimirMutex.WaitOne(0, $false) }
+catch [System.Threading.AbandonedMutexException] { $script:mimirOwned = $true }
+if (-not $script:mimirOwned) {
     [System.Windows.MessageBox]::Show('O Mimir ja esta a correr.','Mimir') | Out-Null
     exit
 }
@@ -27,8 +31,16 @@ public static class MimirHotkey {
 
 $dataDir  = Join-Path $env:USERPROFILE '.mimir'
 $dataFile = Join-Path $dataDir 'notas.json'
-# ponytail: crashLog definido cedo — usado no SourceInitialized (hotkey) antes da def no fim
+
+# ponytail: crashLog + handler ligados no topo — boot errors gravados, nunca morte silenciosa
 $crashLog = 'C:/Users/bruno/AppData/Local/Temp/mimir_crash.txt'
+$ErrorActionPreference = 'Continue'
+[System.Windows.Threading.Dispatcher]::CurrentDispatcher.add_UnhandledException({
+    param($sender, $e)
+    Add-Content $crashLog ("CRASH: " + $e.Exception.ToString())
+    Add-Content $crashLog ("STACK: " + $e.Exception.StackTrace)
+    $e.Handled = $true
+})
 
 $script:notas = @()
 if (Test-Path $dataFile) {
@@ -41,12 +53,7 @@ $script:notas = @($script:notas | ForEach-Object {
     if (-not $o.PSObject.Properties['subs'])  { $o | Add-Member -NotePropertyName subs  -NotePropertyValue @() -Force }
     $o
 })
-Prune-Empty   # ponytail: limpa vazios de sessoes antigas (T20)
 
-function Prune-Empty {
-    # ponytail: remove notas abandonadas (vazias, sem subs, nao-done). No boot e no Add — nunca em edicao ativa.
-    $script:notas = @($script:notas | Where-Object { -not ([string]::IsNullOrWhiteSpace($_.texto) -and $_.subs.Count -eq 0 -and -not $_.done) })
-}
 function Save-Notas {
     if (-not (Test-Path $dataDir)) { New-Item -ItemType Directory -Path $dataDir | Out-Null }
     ($script:notas | ConvertTo-Json -Depth 5) | Set-Content $dataFile -Encoding UTF8
@@ -54,7 +61,8 @@ function Save-Notas {
 function Get-Note([string]$id) { $script:notas | Where-Object { $_.id -eq $id } | Select-Object -First 1 }
 function Add-Note {
     $n = [pscustomobject]@{ id=[guid]::NewGuid().ToString('N').Substring(0,8); texto=''; done=$false; prio='med'; subs=@() }
-    Prune-Empty
+    # ponytail: prune notas abandonadas (vazias, sem subs, nao-done). Sempre depois de add — nunca em edicao ativa.
+    $script:notas = @($script:notas | Where-Object { -not ([string]::IsNullOrWhiteSpace($_.texto) -and $_.subs.Count -eq 0 -and -not $_.done) })
     $script:notas = @($n) + @($script:notas)
     Save-Notas; Render
     foreach ($c in $List.Children) { if ($c.Tag -eq $n.id) { $tb = Find-ChildByType $c.Child 'System.Windows.Controls.TextBox'; if ($tb) { $tb.Focus() }; break } }
@@ -474,14 +482,7 @@ $script:saveTimer = New-Object System.Windows.Threading.DispatcherTimer
 $script:saveTimer.Interval = [TimeSpan]::FromMilliseconds(1200)
 $script:saveTimer.Add_Tick({ $script:saveTimer.Stop(); Save-Notas })
 
+Prune-Empty   # ponytail: limpa vazios de sessoes antigas (T20) — chamada apos defs
 Render
-# ponytail: excecao de handler nao propaga ao callba nao propaga ao callbak nativo (matava a janela silenciosamente)
-$ErrorActionPreference = 'Continue'
-$win.Dispatcher.add_UnhandledException({
-    param($sender, $e)
-    Add-Content $crashLog ("CRASH: " + $e.Exception.ToString())
-    Add-Content $crashLog ("STACK: " + $e.Exception.StackTrace)
-    $e.Handled = $true
-})
 $win.Show()
 [System.Windows.Threading.Dispatcher]::Run()
